@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pydantic-settings
+pdfplumber
+httpx
+python-dotenv
+python-multipart
+groq>=0.9.0
