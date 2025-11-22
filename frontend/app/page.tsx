@@ -16,7 +16,7 @@ interface QueryResponsePayload {
   answer: string;
   chunks: { text: string; score: number }[];
   full_text?: string;
-}
+} 
 
 interface Message {
   role: "user" | "assistant";
@@ -36,11 +36,42 @@ export default function Page() {
     "llama-3.1-8b-instant" | "llama-3.3-70b-versatile"
   >("llama-3.1-8b-instant");
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [typingMessageIndex, setTypingMessageIndex] = useState<number | null>(
+    null,
+  );
+  const [typingText, setTypingText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (typingMessageIndex === null) {
+      setTypingText("");
+      return;
+    }
+
+    const message = messages[typingMessageIndex];
+    if (!message || message.role !== "assistant") {
+      setTypingMessageIndex(null);
+      setTypingText("");
+      return;
+    }
+
+    setTypingText("");
+    let currentIndex = 0;
+    const interval = setInterval(() => {
+      currentIndex += 1;
+      setTypingText(message.content.slice(0, currentIndex));
+      if (currentIndex >= message.content.length) {
+        clearInterval(interval);
+        setTypingMessageIndex(null);
+      }
+    }, 25);
+
+    return () => clearInterval(interval);
+  }, [typingMessageIndex, messages]);
 
   const generateSummary = async (id: string) => {
     setSummaryLoading(true);
@@ -62,11 +93,11 @@ export default function Page() {
       }
 
       const data: QueryResponsePayload = await response.json();
+      const assistantMessage: Message = { role: "assistant", content: data.answer };
       setMessages((prev) => {
-        if (prev.length === 0) {
-          return [{ role: "assistant", content: data.answer }];
-        }
-        return [...prev, { role: "assistant", content: data.answer }];
+        const next = [...prev, assistantMessage];
+        setTypingMessageIndex(next.length - 1);
+        return next;
       });
     } catch (error) {
       console.error("Unable to summarize document", error);
@@ -105,6 +136,8 @@ export default function Page() {
       setSelectedFile(null);
       setMessages([]);
       setQuestion("");
+      setTypingMessageIndex(null);
+      setTypingText("");
       void generateSummary(data.doc_id);
     } catch (error) {
       setUploadError(
@@ -150,10 +183,12 @@ export default function Page() {
       }
 
       const data: QueryResponsePayload = await response.json();
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.answer },
-      ]);
+      const assistantMessage: Message = { role: "assistant", content: data.answer };
+      setMessages((prev) => {
+        const next = [...prev, assistantMessage];
+        setTypingMessageIndex(next.length - 1);
+        return next;
+      });
       setQuestion("");
     } catch (error) {
       setChatError(
@@ -175,6 +210,8 @@ export default function Page() {
     setQuestion("");
     setChatError(null);
     setSummaryLoading(false);
+    setTypingMessageIndex(null);
+    setTypingText("");
   };
 
   const heroContainerClasses =
@@ -233,6 +270,16 @@ export default function Page() {
               >
                 {uploading ? "Uploading…" : "Start"}
               </button>
+              {uploading && (
+                <div className="mt-3 flex w-full flex-col items-center gap-2">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200">
+                    <div className="h-full w-1/3 animate-loading-bar rounded-full bg-neutral-900" />
+                  </div>
+                  <span className="text-xs uppercase tracking-[0.3em] text-neutral-400">
+                    Sending your PDF…
+                  </span>
+                </div>
+              )}
               {uploadError && (
                 <div className="w-full rounded-xl bg-red-50 px-4 py-3 text-xs text-red-600">
                   {uploadError}
@@ -314,7 +361,10 @@ export default function Page() {
                           : "bg-neutral-100 text-neutral-800"
                       }`}
                     >
-                      {message.content}
+                      {message.role === "assistant" &&
+                      typingMessageIndex === index
+                        ? typingText
+                        : message.content}
                     </div>
                   </div>
                 ))}
