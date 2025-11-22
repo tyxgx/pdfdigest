@@ -1,45 +1,58 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import List
+from typing import Iterable, List
 
-from sentence_transformers import SentenceTransformer
+from groq import Groq
 
-# Light, popular, CPU-friendly embedding model
-MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+from config import get_settings
+
+settings = get_settings()
 
 
-@lru_cache(maxsize=1)
-def get_model() -> SentenceTransformer:
+@lru_cache
+def get_groq_client() -> Groq:
+    if not settings.groq_api_key:
+        raise RuntimeError("GROQ_API_KEY is not set in environment")
+    return Groq(api_key=settings.groq_api_key)
+
+
+EMBEDDING_MODEL = "gpt-oss-20b"  # or another Groq embedding-capable model
+
+
+def get_embedding(text: str) -> List[float]:
     """
-    Load the sentence-transformers model once and cache it.
-
-    This runs locally – no external API, no cost.
+    Return a single embedding vector for one piece of text using Groq.
     """
-    return SentenceTransformer(MODEL_NAME)
-
-
-async def get_embedding(text: str) -> List[float]:
-    """
-    Return a single embedding vector for given text.
-    Kept async so existing code (await ...) still works.
-    """
-    if not text.strip():
-        raise ValueError("Text must be non-empty to compute embeddings")
-
-    model = get_model()
-    vector = model.encode(text, normalize_embeddings=True)
-    return vector.tolist()
-
-
-async def get_embeddings(texts: List[str]) -> List[List[float]]:
-    """
-    Batch embeddings for a list of texts.
-    """
-    if not texts:
+    text = text.strip()
+    if not text:
         return []
 
-    model = get_model()
-    vectors = model.encode(texts, normalize_embeddings=True)
-    # sentence-transformers returns a numpy array
-    return [v.tolist() for v in vectors]
+    client = get_groq_client()
+
+    # Groq Python client uses .embeddings.create(...)
+    resp = client.embeddings.create(
+        model=EMBEDDING_MODEL,
+        input=text,
+    )
+
+    # shape: data[0].embedding -> List[float]
+    return resp.data[0].embedding  # type: ignore[no-any-return]
+
+
+def get_embeddings(texts: Iterable[str]) -> List[List[float]]:
+    """
+    Batch version – takes an iterable of strings and returns one embedding list per string.
+    """
+    cleaned = [t.strip() for t in texts]
+    if not cleaned:
+        return []
+
+    client = get_groq_client()
+
+    resp = client.embeddings.create(
+        model=EMBEDDING_MODEL,
+        input=cleaned,
+    )
+
+    return [item.embedding for item in resp.data]  # type: ignore[no-any-return]
