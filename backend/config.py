@@ -15,8 +15,9 @@ class Settings(BaseSettings):
     # Groq
     groq_api_key: Optional[str] = None
     # ✅ OLD: "llama3-8b-8192" (decommissioned)
-    # ✅ NEW: a supported Llama 3.1 model
-    groq_model: str = "llama-3.1-8b-instant"
+    # ✅ OLD: "llama-3.1-8b-instant" (decommissioned 2026-08)
+    # ✅ NEW: a currently-supported Groq model
+    groq_model: str = "openai/gpt-oss-20b"
 
     # Vector DB (Chroma)
     chroma_persist_directory: str = "chroma_db"

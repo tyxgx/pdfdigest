@@ -33,8 +33,8 @@ export default function Page() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [model, setModel] = useState<
-    "llama-3.1-8b-instant" | "llama-3.3-70b-versatile"
-  >("llama-3.1-8b-instant");
+    "openai/gpt-oss-20b" | "openai/gpt-oss-120b"
+  >("openai/gpt-oss-20b");
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [typingMessageIndex, setTypingMessageIndex] = useState<number | null>(
     null,
@@ -313,25 +313,25 @@ export default function Page() {
               <span className="mr-1">Model:</span>
               <button
                 type="button"
-                onClick={() => setModel("llama-3.1-8b-instant")}
+                onClick={() => setModel("openai/gpt-oss-20b")}
                 className={`rounded-full px-3 py-1 border transition ${
-                  model === "llama-3.1-8b-instant"
+                  model === "openai/gpt-oss-20b"
                     ? "bg-neutral-900 text-white border-neutral-900"
                     : "bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400"
                 }`}
               >
-                Fast (8B)
+                Fast (20B)
               </button>
               <button
                 type="button"
-                onClick={() => setModel("llama-3.3-70b-versatile")}
+                onClick={() => setModel("openai/gpt-oss-120b")}
                 className={`rounded-full px-3 py-1 border transition ${
-                  model === "llama-3.3-70b-versatile"
+                  model === "openai/gpt-oss-120b"
                     ? "bg-neutral-900 text-white border-neutral-900"
                     : "bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400"
                 }`}
               >
-                Smart (70B)
+                Smart (120B)
               </button>
             </div>
 
