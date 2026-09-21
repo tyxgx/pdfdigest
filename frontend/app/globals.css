@@ -20,19 +20,12 @@ body {
   color: #0a0a0a;
   font-family: inherit;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
 }
 
 * {
   box-sizing: border-box;
 }
 
-mark.highlighted-chunk {
-  background-color: #fef3c7;
-  color: #111827;
-  border-radius: 0.35rem;
-  padding: 0 0.2em;
-}
 
 @keyframes loading-bar {
   0% {

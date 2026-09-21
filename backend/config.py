@@ -12,16 +12,14 @@ class Settings(BaseSettings):
     Loaded from environment variables or backend/.env.
     """
 
-    # Groq
     groq_api_key: Optional[str] = None
-    # ✅ OLD: "llama3-8b-8192" (decommissioned)
-    # ✅ OLD: "llama-3.1-8b-instant" (decommissioned 2026-08)
-    # ✅ NEW: a currently-supported Groq model
     groq_model: str = "openai/gpt-oss-20b"
 
-    # Vector DB (Chroma)
-    chroma_persist_directory: str = "chroma_db"
-    chroma_collection_name: str = "pdf_documents"
+    # Comma-separated list of extra allowed CORS origins (e.g. a preview deploy).
+    extra_cors_origins: str = ""
+    max_upload_mb: int = 10
+    # Oldest documents are evicted once the in-memory store holds this many.
+    max_documents: int = 50
 
     model_config = SettingsConfigDict(
         env_file=".env",

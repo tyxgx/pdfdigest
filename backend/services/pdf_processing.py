@@ -1,39 +1,41 @@
 from __future__ import annotations
 
 from io import BytesIO
-from typing import List
+from typing import List, TypedDict
 
 import pdfplumber
 
 
-def extract_text_from_pdf(file_bytes: bytes) -> str:
-    """Extract text from a PDF represented as bytes."""
+class Chunk(TypedDict):
+    text: str
+    page: int
+
+
+def extract_pages(file_bytes: bytes) -> List[str]:
+    """Return the text of each page (empty string for pages with no text layer)."""
     if not file_bytes:
-        return ""
-
-    text_parts: List[str] = []
-    with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text_parts.append(page_text)
-    return "\n\n".join(text_parts).strip()
-
-
-def chunk_text(text: str, chunk_size: int = 800, overlap: int = 150) -> List[str]:
-    if not text or text.strip() == "":
         return []
 
-    normalized = text.strip()
-    step = max(1, chunk_size - overlap)
-    chunks: List[str] = []
+    with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+        return [(page.extract_text() or "").strip() for page in pdf.pages]
 
-    for start in range(0, len(normalized), step):
-        end = start + chunk_size
-        chunk = normalized[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
-        if end >= len(normalized):
-            break
+
+def chunk_pages(
+    pages: List[str], chunk_size: int = 800, overlap: int = 150
+) -> List[Chunk]:
+    """Sliding-window chunking per page, so every chunk keeps its page number."""
+    step = max(1, chunk_size - overlap)
+    chunks: List[Chunk] = []
+
+    for page_no, text in enumerate(pages, start=1):
+        if not text:
+            continue
+        for start in range(0, len(text), step):
+            end = start + chunk_size
+            piece = text[start:end].strip()
+            if piece:
+                chunks.append({"text": piece, "page": page_no})
+            if end >= len(text):
+                break
 
     return chunks

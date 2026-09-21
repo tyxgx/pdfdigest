@@ -1,52 +1,66 @@
 from __future__ import annotations
 
-from groq import Groq
+from functools import lru_cache
 from typing import List
+
+from groq import AsyncGroq
 
 from config import get_settings
 
-settings = get_settings()
+ALLOWED_MODELS = {"openai/gpt-oss-20b", "openai/gpt-oss-120b"}
 
-client = Groq(api_key=settings.groq_api_key)
+SYSTEM_PROMPT = (
+    "You answer questions using ONLY the PDF excerpts provided by the user. "
+    "If the excerpts do not contain the answer, say so plainly instead of guessing."
+)
 
 
-async def generate_answer(context_chunks: list[str], question: str, model_name: str | None = None) -> str:
+class LLMError(RuntimeError):
+    """Raised when the LLM provider call fails."""
+
+
+@lru_cache
+def get_client() -> AsyncGroq:
+    api_key = get_settings().groq_api_key
+    if not api_key:
+        raise LLMError("GROQ_API_KEY is not set on the server")
+    return AsyncGroq(api_key=api_key)
+
+
+async def generate_answer(
+    context_chunks: List[str],
+    question: str,
+    model_name: str | None = None,
+    history: List[dict] | None = None,
+) -> str:
     if not context_chunks:
         return "I couldn't find anything related to that question in the PDF."
 
-    context = "\n\n".join(context_chunks)
+    model = model_name or get_settings().groq_model
+    context = "\n\n---\n\n".join(context_chunks)
 
-    model = model_name or settings.groq_model  # per-request override allowed
-
-    prompt = f"""
-You are an AI assistant. Your job is to answer questions using ONLY the text below.
-
-PDF Content:
-{context}
-
-Question: {question}
-
-Answer clearly and concisely.
-"""
+    messages: List[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for turn in (history or [])[-6:]:
+        messages.append({"role": turn["role"], "content": turn["content"]})
+    messages.append(
+        {
+            "role": "user",
+            "content": f"PDF excerpts:\n{context}\n\nQuestion: {question}\n\nAnswer clearly and concisely.",
+        }
+    )
 
     try:
-        completion = client.chat.completions.create(
+        completion = await get_client().chat.completions.create(
             model=model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You answer questions based ONLY on the provided PDF text.",
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
+            messages=messages,
             temperature=0.1,
-            max_tokens=300,
+            # gpt-oss models spend part of the budget on reasoning tokens.
+            max_tokens=1500,
         )
+    except LLMError:
+        raise
+    except Exception as exc:
+        raise LLMError(f"{type(exc).__name__}: {exc}") from exc
 
-        answer = completion.choices[0].message.content.strip()
-        return answer or "I couldn't generate an answer."
-    except Exception as e:
-        return f"LLM error: {e}"
+    answer = (completion.choices[0].message.content or "").strip()
+    return answer or "I couldn't generate an answer."
