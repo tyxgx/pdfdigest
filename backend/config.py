@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     max_upload_mb: int = 10
     # Oldest documents are evicted once the in-memory store holds this many.
     max_documents: int = 50
+    max_pages: int = 300
+    # Per client IP per minute; the demo spends a shared Groq key.
+    upload_rate_per_min: int = 10
+    ask_rate_per_min: int = 30
 
     model_config = SettingsConfigDict(
         env_file=".env",

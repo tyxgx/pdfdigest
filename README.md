@@ -16,5 +16,5 @@ cd frontend && npm install && npm run dev
 
 ## Tests
 ```bash
-cd backend && pip install pytest reportlab && python -m pytest tests
+cd backend && pip install -r requirements-dev.txt && python -m pytest tests
 ```

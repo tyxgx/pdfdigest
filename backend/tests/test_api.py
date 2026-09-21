@@ -95,3 +95,22 @@ def test_llm_failure_is_502(client, monkeypatch):
 def test_too_large(client, monkeypatch):
     monkeypatch.setattr(main.settings, "max_upload_mb", 0)
     assert upload(client, ["hello"]).status_code == 413
+
+
+def test_rate_limit_returns_429(client):
+    doc = upload(client, ["hello world"]).json()["doc_id"]
+    body = {"doc_id": doc, "question": "hello"}
+    ip = {"x-forwarded-for": "203.0.113.9"}  # own bucket, other tests keep theirs
+    codes = [
+        client.post("/api/query", json=body, headers=ip).status_code
+        for _ in range(main.settings.ask_rate_per_min + 2)
+    ]
+    assert codes[0] == 200
+    assert codes[-1] == 429
+
+
+def test_history_is_capped(client):
+    doc = upload(client, ["hello world"]).json()["doc_id"]
+    history = [{"role": "user", "content": "x"}] * 11
+    r = client.post("/api/query", json={"doc_id": doc, "question": "hello", "history": history})
+    assert r.status_code == 422

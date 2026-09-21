@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import uuid
 from contextlib import asynccontextmanager
 from typing import Literal
@@ -7,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from config import get_settings
+from ratelimit import RateLimitMiddleware
 from services.llm import ALLOWED_MODELS, LLMError, generate_answer
 from services.pdf_processing import chunk_pages, extract_pages
 from services.vector_store import (
@@ -23,6 +26,9 @@ async def lifespan(_: FastAPI):
     get_settings()
     yield
 
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger("pdfdigest")
 
 app = FastAPI(title="PDF Knowledge Base API", lifespan=lifespan)
 
@@ -43,6 +49,13 @@ app.add_middleware(
 )
 
 
+app.add_middleware(
+    RateLimitMiddleware,
+    upload_per_min=settings.upload_rate_per_min,
+    ask_per_min=settings.ask_rate_per_min,
+)
+
+
 @app.get("/health")
 async def health_check() -> dict[str, str]:
     return {"status": "ok"}
@@ -57,7 +70,7 @@ class QueryRequest(BaseModel):
     doc_id: str
     question: str = Field(max_length=2000)
     model: str | None = None
-    history: list[HistoryTurn] = []
+    history: list[HistoryTurn] = Field(default_factory=list, max_length=10)
 
 
 class SummaryRequest(BaseModel):
@@ -112,12 +125,16 @@ async def upload_pdf(file: UploadFile = File(...)) -> dict[str, str | int]:
         raise HTTPException(status_code=400, detail="File is not a valid PDF")
 
     try:
-        pages = extract_pages(content)
+        pages = await asyncio.to_thread(extract_pages, content)
     except Exception as exc:
         raise HTTPException(
             status_code=422, detail=f"Could not read this PDF ({type(exc).__name__})"
         ) from exc
 
+    if len(pages) > settings.max_pages:
+        raise HTTPException(
+            status_code=413, detail=f"PDF has more than {settings.max_pages} pages"
+        )
     chunks = chunk_pages(pages)
     if not chunks:
         raise HTTPException(
@@ -153,6 +170,7 @@ async def summarize_document(payload: SummaryRequest) -> QueryResponse:
             model_name=payload.model,
         )
     except LLMError as exc:
+        logger.warning("LLM error: %s", exc)
         raise HTTPException(status_code=502, detail=f"LLM error: {exc}") from exc
     return QueryResponse(answer=answer, sources=_sources(results))
 
@@ -178,5 +196,6 @@ async def query_document_endpoint(payload: QueryRequest) -> QueryResponse:
             history=[t.model_dump() for t in payload.history],
         )
     except LLMError as exc:
+        logger.warning("LLM error: %s", exc)
         raise HTTPException(status_code=502, detail=f"LLM error: {exc}") from exc
     return QueryResponse(answer=answer, sources=_sources(results))

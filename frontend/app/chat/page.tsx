@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { DragEvent, FormEvent, useEffect, useRef, useState } from "react";
 import {
   ask,
@@ -49,9 +50,11 @@ export default function ChatPage() {
       setTyping((current) => {
         if (!current) return null;
         const length = messages[current.index]?.content.length ?? 0;
-        return current.shown + 4 >= length
+        // Long answers speed up so any reply finishes in about two seconds.
+        const step = Math.max(4, Math.ceil(length / 120));
+        return current.shown + step >= length
           ? null
-          : { ...current, shown: current.shown + 4 };
+          : { ...current, shown: current.shown + step };
       });
     }, 15);
     return () => clearInterval(interval);
@@ -333,7 +336,7 @@ export default function ChatPage() {
                       {isUser ? (
                         message.content
                       ) : (
-                        <ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {isTyping ? message.content.slice(0, typing.shown) : message.content}
                         </ReactMarkdown>
                       )}
