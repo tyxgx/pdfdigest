@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
 import { DragEvent, FormEvent, useEffect, useRef, useState } from "react";
 import {
   ask,
@@ -249,7 +250,7 @@ export default function ChatPage() {
               {selectedFile && (
                 <p className="text-xs text-neutral-500">
                   Ready to upload: {selectedFile.name} (
-                  {(selectedFile.size / 1024 / 1024).toFixed(1)} MB)
+                  {selectedFile.size >= 1024 * 1024 ? `${(selectedFile.size / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(selectedFile.size / 1024))} KB`})
                 </p>
               )}
               <button
@@ -325,11 +326,17 @@ export default function ChatPage() {
                     className={`flex w-full flex-col ${isUser ? "items-end" : "items-start"}`}
                   >
                     <div
-                      className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 shadow ${
-                        isUser ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-800"
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 shadow ${
+                        isUser ? "whitespace-pre-wrap bg-neutral-900 text-white" : "md bg-neutral-100 text-neutral-800"
                       }`}
                     >
-                      {isTyping ? message.content.slice(0, typing.shown) : message.content}
+                      {isUser ? (
+                        message.content
+                      ) : (
+                        <ReactMarkdown>
+                          {isTyping ? message.content.slice(0, typing.shown) : message.content}
+                        </ReactMarkdown>
+                      )}
                     </div>
                     {!isUser && !isTyping && (
                       <div className="mt-1 flex items-center gap-3 text-xs text-neutral-400">
